@@ -17,13 +17,13 @@
 * Inputs can be updated from links to other blocks or measurements each time the block's loop is called
 */
 struct example_block_inputs_t {
-	bool inputs_bool;       // Note: this will be treated like a unit8 in xCal/YACP
-    uint8_t inputs_uint8;
+	bool inputs_bool;       // Display: bin Note: this will be treated like a unit8 in xCal/YACP
+    uint8_t inputs_uint8;   // Required
     uint16_t inputs_uint16;
     uint32_t inputs_uint32;
     int8_t inputs_int8;
     int16_t inputs_int16;
-    int32_t inputs_int32;
+    int32_t inputs_int32;   // Display: hex
 	float inputs_float;		// Unit:RPM Note:Notes wll show up as tooltips in xVCU
 };
 
