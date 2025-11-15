@@ -1,6 +1,6 @@
 import os
 import sys
-import traceback
+import shutil
 import argparse
 import pathlib
 import re
@@ -23,35 +23,9 @@ else:
     block_nickname = block_name.lower()
 
 input_ids = []
-try:
-    if len(args.i) > 0:
-        for can_id in args.i.split(','):
-            if "0x" in can_id:
-                can_id = int(can_id,16)
-            else:
-                can_id = int(can_id)
-            input_ids.append(can_id)
-except:
-    pass
-
 output_ids = []
-try:
-    if len(args.o) > 0:
-        for can_id in args.o.split(','):
-            if "0x" in can_id:
-                can_id = int(can_id,16)
-            else:
-                can_id = int(can_id)
-            output_ids.append(can_id)
-except:
-    pass
 
-try:
-    dbc = cantools.database.load_file(args.dbc, database_format='dbc', cache_dir=None)
-except:
-    print("Failed to open DBC: "+args.dbc)
-    sys.exit(1)
-
+### Helper functions
 def _canonical(value: str) -> str:
     """Replace anything but 'a-z', 'A-Z' and '0-9' with '_'.
 
@@ -67,6 +41,134 @@ def camel_to_snake_case(value: str) -> str:
     value = _canonical(value)
 
     return value
+
+def get_signal_type(signal):
+    if signal.scale != 1:
+        return "float"
+    elif signal.is_signed:
+        if signal.length <= 8:
+            return "int8_t"
+        elif signal.length <= 16:
+            return "int16_t"
+        elif signal.length <= 32:
+            return "int32_t"
+    else:
+        if signal.length <= 8:
+            return "uint8_t"
+        elif signal.length <= 16:
+            return "uint16_t"
+        elif signal.length <= 32:
+            return "uint32_t"
+    return "float"
+
+### Parse DBC if provided
+
+if args.dbc is not None:
+    try:
+        if len(args.i) > 0:
+            for can_id in args.i.split(','):
+                if "0x" in can_id:
+                    can_id = int(can_id,16)
+                else:
+                    can_id = int(can_id)
+                input_ids.append(can_id)
+    except:
+        pass
+    
+    try:
+        if len(args.o) > 0:
+            for can_id in args.o.split(','):
+                if "0x" in can_id:
+                    can_id = int(can_id,16)
+                else:
+                    can_id = int(can_id)
+                output_ids.append(can_id)
+    except:
+        pass
+
+    try:
+        dbc = cantools.database.load_file(args.dbc, database_format='dbc', cache_dir=None)
+    except:
+        print("Failed to open DBC: "+args.dbc)
+        sys.exit(1)
+
+
+# Make directories
+root_dirname = "xvcu_"+block_name
+tests_dirname = os.path.join(root_dirname, "blocks", block_name, "tests")
+src_dirname = os.path.join(root_dirname, "blocks", block_name, "src")
+can_dirname = os.path.join(src_dirname, "can")
+cmake_dirname = os.path.join(root_dirname, "cmake")
+os.makedirs(root_dirname, exist_ok=True)
+os.makedirs(tests_dirname, exist_ok=True)
+os.makedirs(src_dirname, exist_ok=True)
+os.makedirs(can_dirname, exist_ok=True)
+os.makedirs(cmake_dirname, exist_ok=True)
+
+# Move over common files
+shutil.copy2("../"+".gitignore", os.path.join(root_dirname, ".gitignore"))
+shutil.copy2("../"+"winbuild.cmd", os.path.join(root_dirname, "winbuild.cmd"))
+shutil.copy2("../"+"cmake/clang-tools.cmake", os.path.join(cmake_dirname, "clang-tools.cmake"))
+
+# generate CMakeLists.txt
+cmake_str = f"""cmake_minimum_required(VERSION 3.22)
+
+project(xvcu_{block_name}_library LANGUAGES C)
+set(SOURCE_DIR ${{PROJECT_SOURCE_DIR}})
+
+include(cmake/xvcu_library.cmake)
+
+add_compile_options(
+	#-pedantic
+	#-pedantic-errors
+	#-Wconversion
+	#-Wfloat-equal
+    -Wall
+	-Wextra
+	-Werror
+	-Wuninitialized
+	-Wunused
+	-Wshadow
+	-Wpointer-arith
+	-Wlogical-op
+	-Waggregate-return
+)
+
+add_compile_options(
+	-O0
+	-g3
+)
+"""
+cmake_filename = os.path.join(root_dirname, "CMakeLists.txt")
+cmake_file = open(cmake_filename,"w")
+cmake_file.write(cmake_str)
+cmake_file.close()
+
+# Generate README
+readme_str = f"""# xVCU {block_name} block library
+
+This library contains an xVCU block generated using the `block_gen.py` script. 
+"""
+readme_filename = os.path.join(root_dirname, "README.md")
+readme_file = open(readme_filename,"w")
+readme_file.write(readme_str)
+readme_file.close()
+
+# Generate cmake file
+cmake_block_str = f"""add_library({block_name}_library STATIC
+	${{SOURCE_DIR}}/blocks/{block_name}/src/{block_name}.c
+"""
+if (args.dbc is not None) and (len(input_ids) > 0 or len(output_ids) > 0):
+    cmake_block_str += f"""    ${{SOURCE_DIR}}/blocks/{block_name}/src/can/{block_nickname}.c
+"""
+cmake_block_str += ")"
+
+cmake_block_filename = os.path.join(cmake_dirname, "example_block.cmake")
+cmake_block_file = open(cmake_block_filename,"w")
+cmake_block_file.write(cmake_block_str)
+cmake_block_file.close()
+
+# Generate block files
 
 def h_file_preamble(block_name):
     preamble = f"""/*
@@ -130,26 +232,6 @@ void {block_name}_tick(struct {block_name}_data_t* data);
 """
     return funs
 
-
-def get_signal_type(signal):
-    if signal.scale != 1:
-        return "float"
-    elif signal.is_signed:
-        if signal.length <= 8:
-            return "int8_t"
-        elif signal.length <= 16:
-            return "int16_t"
-        elif signal.length <= 32:
-            return "int32_t"
-    else:
-        if signal.length <= 8:
-            return "uint8_t"
-        elif signal.length <= 16:
-            return "uint16_t"
-        elif signal.length <= 32:
-            return "uint32_t"
-    return "float"
-
 h_str = h_file_preamble(block_name)
 
 if len(input_ids) > 0:
@@ -179,7 +261,8 @@ h_str += h_file_config_struct(block_name)
 h_str += h_file_block_struct(block_name)
 h_str += h_file_funs(block_name)
 
-h_file = open(block_name+".h","w")
+block_h_filename = os.path.join(src_dirname, block_name+".h")
+h_file = open(block_h_filename,"w")
 h_file.write(h_str)
 h_file.close()
 
@@ -196,7 +279,7 @@ c_file_str = f"""
 #include <math.h>
 
 #include "{block_name}.h"
-#include "{block_nickname}.h"
+#include "can/{block_nickname}.h"
 
 void {block_name}_init(struct {block_name}_data_t* data)
 {{
@@ -284,18 +367,44 @@ c_file_str += f"""
 }}
 """
 
-c_file = open(block_name+".c","w")
+block_c_filename = os.path.join(src_dirname, block_name+".c")
+c_file = open(block_c_filename,"w")
 c_file.write(c_file_str)
 c_file.close()
 
-header, source, fuzzer_source, fuzzer_makefile = generate_c_source.generate(dbc, block_nickname, block_nickname+".h", block_nickname+".c", block_nickname+".c", use_float=True)
+if args.dbc is not None and (len(input_ids) > 0 or len(output_ids) > 0):
+    header, source, fuzzer_source, fuzzer_makefile = generate_c_source.generate(dbc, block_nickname, block_nickname+".h", block_nickname+".c", block_nickname+".c", use_float=True)
 
-can_h_file = open(block_nickname+".h","w")
-can_h_file.write(header)
-can_h_file.close()
+    can_h_filename = os.path.join(can_dirname, block_nickname+".h")
+    can_h_file = open(can_h_filename,"w")
+    can_h_file.write(header)
+    can_h_file.close()
 
-can_c_file = open(block_nickname+".c","w")
-can_c_file.write(source)
-can_c_file.close()
+    can_c_filename = os.path.join(can_dirname, block_nickname+".c")
+    can_c_file = open(can_c_filename,"w")
+    can_c_file.write(source)
+    can_c_file.close()
 
+test_file_str = f"""
+#include <gtest/gtest.h>
+
+extern "C" {{
+#include "../src/{block_name}.h"
+}}
+
+class {block_name}_tests : public testing::Test {{}};
+
+TEST_F({block_name}_tests, test_init) {{
+    struct {block_name}_data_t data;
+
+    {block_name}_init(&data);
+
+    EXPECT_EQ(data.config.ticks_per_sec, 100); 
+}}
+"""
+
+test_filename = os.path.join(tests_dirname, "test_"+block_name+".cpp")
+test_file = open(test_filename,"w")
+test_file.write(test_file_str)
+test_file.close()
 
