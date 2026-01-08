@@ -99,16 +99,20 @@ tests_dirname = os.path.join(root_dirname, "blocks", block_name, "tests")
 src_dirname = os.path.join(root_dirname, "blocks", block_name, "src")
 can_dirname = os.path.join(src_dirname, "can")
 cmake_dirname = os.path.join(root_dirname, "cmake")
+docs_dirname = os.path.join(root_dirname, "docs")
 os.makedirs(root_dirname, exist_ok=True)
 os.makedirs(tests_dirname, exist_ok=True)
 os.makedirs(src_dirname, exist_ok=True)
 os.makedirs(can_dirname, exist_ok=True)
 os.makedirs(cmake_dirname, exist_ok=True)
+os.makedirs(docs_dirname, exist_ok=True)
 
 # Move over common files
-shutil.copy2("../"+".gitignore", os.path.join(root_dirname, ".gitignore"))
-shutil.copy2("../"+"winbuild.cmd", os.path.join(root_dirname, "winbuild.cmd"))
-shutil.copy2("../"+"cmake/clang-tools.cmake", os.path.join(cmake_dirname, "clang-tools.cmake"))
+skel_dir = os.path.dirname(os.path.abspath(__file__))
+shutil.copy2(os.path.join(skel_dir,"..",".gitignore"), os.path.join(root_dirname, ".gitignore"))
+shutil.copy2(os.path.join(skel_dir,"..","winbuild.cmd"), os.path.join(root_dirname, "winbuild.cmd"))
+shutil.copy2(os.path.join(skel_dir,"..","cmake","clang-tools.cmake"), os.path.join(cmake_dirname, "clang-tools.cmake"))
+shutil.copy2(args.dbc, os.path.join(docs_dirname, args.dbc))
 
 # generate CMakeLists.txt
 cmake_str = f"""cmake_minimum_required(VERSION 3.22)
@@ -242,7 +246,14 @@ if len(input_ids) > 0:
             print("Input ID 0x%X not found in DBC"%(id))
             continue
         for signal in msg.signals:
-            h_str += "\t"+get_signal_type(signal)+" "+camel_to_snake_case(signal.name)+";\n"
+            h_str += "\t"+get_signal_type(signal)+" "+camel_to_snake_case(signal.name)+";"
+            if (signal.unit != None and signal.unit != "") or (signal.comment != None and signal.comment != ""):
+                h_str += " //"
+            if signal.unit != None and signal.unit != "":
+                h_str += " Unit:"+signal.unit
+            if signal.comment != None and signal.comment != "":
+                h_str += "Notes:"+signal.comment
+            h_str += "\n"
     h_str += "};\n\n"
 
 if len(output_ids) > 0:
@@ -295,7 +306,7 @@ if len(output_ids) > 0:
         if msg is None:
             print("Input ID 0x%X not found in DBC"%(id))
             continue
-        c_file_str += f"    if (can_id == 0x{msg.frame_id:X}) {{\n"
+        c_file_str += f"    if (can_id == 0x{msg.frame_id:X})\n\t{{\n"
         c_file_str += f"        struct {block_nickname}_{camel_to_snake_case(msg.name)}_t s;\n"
         c_file_str += f"        {block_nickname}_{camel_to_snake_case(msg.name)}_unpack(&s, buf, {msg.length});\n"
 
@@ -338,18 +349,19 @@ if len(input_ids) > 0:
         counter += 1
 
 c_file_str += f"""
-    if (data->internal.can_tick_counter >= (data->config.ticks_per_s * 2)) {{
+    if (data->internal.can_tick_counter >= (data->config.ticks_per_s * 2)) 
+    {{
         data->outputs.timeout = 1;
 """
 
-if len(input_ids) > 0:
+if len(output_ids) > 0:
     counter = 0
-    for id in input_ids:
+    for id in output_ids:
         msg = dbc.get_message_by_frame_id(id)
         if msg is None:
             continue
         for signal in msg.signals:
-            c_file_str += f"\t\tdata->inputs.{camel_to_snake_case(signal.name)} = 0;\n"
+            c_file_str += f"\t\tdata->outputs.{camel_to_snake_case(signal.name)} = 0;\n"
 
 c_file_str += f"""
     }}
@@ -399,7 +411,7 @@ TEST_F({block_name}_tests, test_init) {{
 
     {block_name}_init(&data);
 
-    EXPECT_EQ(data.config.ticks_per_sec, 100); 
+    EXPECT_EQ(data.config.ticks_per_s, 100); 
 }}
 """
 
