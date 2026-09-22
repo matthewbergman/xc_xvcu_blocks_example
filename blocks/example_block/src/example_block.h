@@ -13,18 +13,25 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+enum EXAMPLE_BLOCK_VALUES {
+	VALUE_ZERO = 0,
+	VALUE_ONE,
+    VALUE_TWO,
+    VALUE_FIVE = 5
+};
+
 /*
 * Inputs can be updated from links to other blocks or measurements each time the block's loop is called
 */
 struct example_block_inputs_t {
-	bool inputs_bool;       // Display: bin Note: this will be treated like a unit8 in xCal/YACP
-    uint8_t inputs_uint8;   // Required
-    uint16_t inputs_uint16;
-    uint32_t inputs_uint32;
+	bool inputs_bool;       // Note: this will be treated like a unit8 in xCal/YACP
+    uint8_t inputs_uint8;   // Required; Min: 0; Max: 100; Unit: %
+    uint16_t inputs_uint16; // Display: bin; Note: This value will show up as a binary value e.g. 0b11000010
+    uint32_t inputs_uint32; // Display: hex; Note: This value will show up as hexadecimal e.g. 0x12345678
     int8_t inputs_int8;
     int16_t inputs_int16;
-    int32_t inputs_int32;   // Display: hex
-	float inputs_float;		// Unit:RPM Note:Notes wll show up as tooltips in xVCU
+    int32_t inputs_int32;   
+	float inputs_float;		// Unit: RPM; Note: Notes wll show up as tooltips in xVCU and xCal
 };
 
 /*
@@ -39,6 +46,7 @@ struct example_block_outputs_t {
     int16_t outputs_int16;
     int32_t outputs_int32;
 	float outputs_float;
+    enum EXAMPLE_BLOCK_VALUES output_choices;
 };
 
 /*
@@ -58,8 +66,8 @@ struct example_block_internal_t {
 /*
 * Configuration items are set once at startup, typically from NVM. 
 * There are two special config items:
-*    ticks_per_s - this is the rate at which the block's tick function is called
-*    can_send - if this block needs to send data on a CAN bus use this function. Omit if this block does not use CAN.
+*    ticks_per_s - this is the rate at which the block's tick function is called, it will be automataicaly set during the build process based on the loop selected in xVCU
+*    can_send - if this block needs to send data on a CAN bus use this function. Omit if this block does not use CAN. 
 */
 struct example_block_config_t {
 	uint8_t ticks_per_s;
@@ -73,6 +81,7 @@ struct example_block_config_t {
     int16_t config_int16;
     int32_t config_int32;
 	float config_float;
+    enum EXAMPLE_BLOCK_VALUES config_choices; // Note: This will be a dropdown with the options in the enum
 };
 
 struct example_block_data_t {

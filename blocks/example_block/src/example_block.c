@@ -31,4 +31,5 @@ void example_block_tick(struct example_block_data_t* data)
     data->outputs.outputs_int16 = data->config.config_int16;
     data->outputs.outputs_int32 = data->config.config_int32;
     data->outputs.outputs_float = data->config.config_float;
+    data->outputs.output_choices = data->config.config_choices;
 }
