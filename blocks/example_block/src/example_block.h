@@ -17,7 +17,8 @@ enum EXAMPLE_BLOCK_VALUES {
 	VALUE_ZERO = 0,
 	VALUE_ONE,
     VALUE_TWO,
-    VALUE_FIVE = 5
+    VALUE_FIVE = 5,
+    VALUE_SIX
 };
 
 /*
@@ -32,14 +33,15 @@ struct example_block_inputs_t {
     int16_t inputs_int16;
     int32_t inputs_int32;   
 	float inputs_float;		// Unit: RPM; Note: Notes wll show up as tooltips in xVCU and xCal
+    enum EXAMPLE_BLOCK_VALUES input_choices; // Note: This will be a dropdown with the options in the enum
 };
 
 /*
 * Outputs send data from this block to other blocks or measurements
 */
 struct example_block_outputs_t {
-    bool outputs_bool;
-    uint8_t outputs_uint8;
+    bool outputs_bool;      
+    uint8_t outputs_uint8;  // Note: Inputs, outputs and configs may have notes, units and display mode
     uint16_t outputs_uint16;
     uint32_t outputs_uint32;
     int8_t outputs_int8;
@@ -81,7 +83,7 @@ struct example_block_config_t {
     int16_t config_int16;
     int32_t config_int32;
 	float config_float;
-    enum EXAMPLE_BLOCK_VALUES config_choices; // Note: This will be a dropdown with the options in the enum
+    enum EXAMPLE_BLOCK_VALUES config_choices;
 };
 
 struct example_block_data_t {
