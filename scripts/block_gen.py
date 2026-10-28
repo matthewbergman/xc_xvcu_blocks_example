@@ -43,7 +43,9 @@ def camel_to_snake_case(value: str) -> str:
     return value
 
 def get_signal_type(signal):
-    if signal.scale != 1:
+    if signal.choices != None and len(signal.choices) > 0:
+        return "enum"
+    elif signal.scale != 1:
         return "float"
     elif signal.is_signed:
         if signal.length <= 8:
@@ -193,6 +195,20 @@ def h_file_preamble(block_name):
 """
     return preamble
 
+def h_file_enum_defs(enums):
+    enums_str = ""
+    for enum_name, enum in enums.items():
+        enums_str += "enum "+enum_name+"\n"
+        enums_str += "{\n"
+        for value, name in enum.items():
+            name = _canonical(str(name)).upper()
+            if name[0].isdigit():
+                name = "_"+name
+            enums_str += "\t"+name+" = "+str(value)+",\n"
+        enums_str += "};\n"
+    enums_str += "\n"
+    return enums_str
+
 def h_file_input_struct(block_name):
     struct_def = "struct "+block_name+"_inputs_t {\n"
     return struct_def
@@ -238,35 +254,64 @@ void {block_name}_tick(struct {block_name}_data_t* data);
 
 h_str = h_file_preamble(block_name)
 
+enums = {}
+
+inputs_str = ""
 if len(input_ids) > 0:
-    h_str += h_file_input_struct(block_name)
+    inputs_str += h_file_input_struct(block_name)
     for id in input_ids:
         msg = dbc.get_message_by_frame_id(id)
         if msg is None:
             print("Input ID 0x%X not found in DBC"%(id))
             continue
         for signal in msg.signals:
-            h_str += "\t"+get_signal_type(signal)+" "+camel_to_snake_case(signal.name)+";"
-            if (signal.unit != None and signal.unit != "") or (signal.comment != None and signal.comment != ""):
-                h_str += " //"
-            if signal.unit != None and signal.unit != "":
-                h_str += " Unit:"+signal.unit
-            if signal.comment != None and signal.comment != "":
-                h_str += "Notes:"+signal.comment
-            h_str += "\n"
-    h_str += "};\n\n"
+            type_str = get_signal_type(signal)
+            if type_str == "enum":
+                enum_name = camel_to_snake_case(signal.name).upper()+"_VALUES"
+                enums[enum_name] = signal.choices
+                inputs_str += "\t"+type_str+" "+enum_name+" "+camel_to_snake_case(signal.name)+";"
+            else:
+                inputs_str += "\t"+type_str+" "+camel_to_snake_case(signal.name)+";"
 
+            if (signal.unit != None and signal.unit != "") or (signal.comment != None and signal.comment != ""):
+                inputs_str += " //"
+                if signal.unit != None and signal.unit != "":
+                    inputs_str += "Unit:"+signal.unit+";"
+                if signal.comment != None and signal.comment != "":
+                    inputs_str += "Notes:"+signal.comment+";"
+            inputs_str += "\n"
+    inputs_str += "};\n\n"
+
+outputs_str = ""
 if len(output_ids) > 0:
-    h_str += h_file_output_struct(block_name)
+    outputs_str += h_file_output_struct(block_name)
     for id in output_ids:
         msg = dbc.get_message_by_frame_id(id)
         if msg is None:
             print("Input ID 0x%X not found in DBC"%(id))
             continue
         for signal in msg.signals:
-            h_str += "\t"+get_signal_type(signal)+" "+camel_to_snake_case(signal.name)+";\n"
-    h_str += "\tuint8_t timeout;\n"
-    h_str += "};\n\n"
+            type_str = get_signal_type(signal)
+            if type_str == "enum":
+                enum_name = camel_to_snake_case(signal.name).upper()+"_VALUES"
+                enums[enum_name] = signal.choices
+                outputs_str += "\t"+type_str+" "+enum_name+" "+camel_to_snake_case(signal.name)+";"
+            else:
+                outputs_str += "\t"+type_str+" "+camel_to_snake_case(signal.name)+";"
+            if (signal.unit != None and signal.unit != "") or (signal.comment != None and signal.comment != ""):
+                outputs_str += " //"
+                if signal.unit != None and signal.unit != "":
+                    outputs_str += "Unit:"+signal.unit+";"
+                if signal.comment != None and signal.comment != "":
+                    outputs_str += "Notes:"+signal.comment+";"
+            outputs_str += "\n"
+
+    outputs_str += "\tuint8_t timeout;\n"
+    outputs_str += "};\n\n"
+
+h_str += h_file_enum_defs(enums)
+h_str += inputs_str
+h_str += outputs_str
 
 h_str += h_file_config_struct(block_name)
 h_str += h_file_block_struct(block_name)
