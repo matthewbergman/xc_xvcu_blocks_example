@@ -252,6 +252,20 @@ void {block_name}_tick(struct {block_name}_data_t* data);
 """
     return funs
 
+def get_signal_comment(signal):
+    comment = ""
+    if (signal.unit != None and signal.unit != "") or (signal.comment != None and signal.comment != "") or (signal.minimum != None) or (signal.maximum != None):
+        comment += " //"
+        if signal.unit != None and signal.unit != "":
+            comment += "Unit:"+signal.unit+";"
+        if signal.minimum != None:
+            comment += "Min:"+str(signal.minimum)+";"
+        if signal.maximum != None:
+            comment += "Max:"+str(signal.maximum)+";"
+        if signal.comment != None and signal.comment != "":
+            comment += "Notes:"+signal.comment+";"
+    return comment
+
 h_str = h_file_preamble(block_name)
 
 enums = {}
@@ -272,13 +286,7 @@ if len(input_ids) > 0:
                 inputs_str += "\t"+type_str+" "+enum_name+" "+camel_to_snake_case(signal.name)+";"
             else:
                 inputs_str += "\t"+type_str+" "+camel_to_snake_case(signal.name)+";"
-
-            if (signal.unit != None and signal.unit != "") or (signal.comment != None and signal.comment != ""):
-                inputs_str += " //"
-                if signal.unit != None and signal.unit != "":
-                    inputs_str += "Unit:"+signal.unit+";"
-                if signal.comment != None and signal.comment != "":
-                    inputs_str += "Notes:"+signal.comment+";"
+            inputs_str += get_signal_comment(signal)
             inputs_str += "\n"
     inputs_str += "};\n\n"
 
@@ -298,12 +306,7 @@ if len(output_ids) > 0:
                 outputs_str += "\t"+type_str+" "+enum_name+" "+camel_to_snake_case(signal.name)+";"
             else:
                 outputs_str += "\t"+type_str+" "+camel_to_snake_case(signal.name)+";"
-            if (signal.unit != None and signal.unit != "") or (signal.comment != None and signal.comment != ""):
-                outputs_str += " //"
-                if signal.unit != None and signal.unit != "":
-                    outputs_str += "Unit:"+signal.unit+";"
-                if signal.comment != None and signal.comment != "":
-                    outputs_str += "Notes:"+signal.comment+";"
+            outputs_str += get_signal_comment(signal)
             outputs_str += "\n"
 
     outputs_str += "\tuint8_t timeout;\n"
